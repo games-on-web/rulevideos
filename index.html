@@ -91,17 +91,67 @@
     border-radius: 5px;
     cursor: pointer;
     user-select: none;
+    transition: background-color 0.3s ease;
   }
   #tagApplyBtn:hover {
     background: #21a1f1;
+  }
+  #strokeBlink {
+    position: fixed;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 130px;
+    height: 65px;
+    border-top-left-radius: 130px;
+    border-top-right-radius: 130px;
+    background: #61dafb;
+    box-shadow: 0 0 30px #61dafb, 0 0 50px #21a1f1;
+    opacity: 0.5;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    color: black;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    user-select: none;
+    font-size: 1.5rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  #edgeTimer {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Courier New', monospace;
+    font-size: 2rem;
+    font-weight: bold;
+    padding: 10px 40px;
+    border-radius: 40px;
+    background: rgba(0,0,0,0.7);
+    color: #61dafb;
+    box-shadow: 0 0 15px #61dafb;
+    z-index: 10001;
+    user-select: none;
+    text-align: center;
+    min-width: 220px;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 0.15; }
   }
 </style>
 </head>
 <body>
 
+<div id="strokeBlink">STROKE</div>
+<div id="edgeTimer">Loading timer...</div>
+
 <div id="loading">Loading videos...</div>
 
-<video id="videoPlayer" controls autoplay> </video>
+<video id="videoPlayer" controls autoplay preload="auto"></video>
 
 <div id="controls">
   <button id="prevBtn">⏮ Previous</button>
@@ -120,6 +170,8 @@
   const nextBtn = document.getElementById('nextBtn');
   const tagInput = document.getElementById('tagInput');
   const tagApplyBtn = document.getElementById('tagApplyBtn');
+  const edgeTimerDiv = document.getElementById('edgeTimer');
+  const strokeBlink = document.getElementById('strokeBlink');
 
   let videos = [];
   let currentIndex = 0;
@@ -133,13 +185,10 @@
 
   function setVideo(index) {
     if (videos.length === 0) return;
-    currentIndex = (index + videos.length) % videos.length; // loop around
+    currentIndex = (index + videos.length) % videos.length;
     const videoUrl = videos[currentIndex].file_url;
-
     videoElement.src = videoUrl;
-    videoElement.play().catch(e => {
-      console.warn('Autoplay prevented:', e);
-    });
+    videoElement.play().catch(() => {});
     updateLoadingText();
   }
 
@@ -159,53 +208,118 @@
     setVideo(currentIndex + 1);
   });
 
-  async function fetchVideos(tags = 'intense video') {
-    loadingDiv.style.display = 'block';
-    loadingDiv.textContent = 'Loading videos...';
-    try {
-      const encodedTags = encodeURIComponent(tags.trim()).replace(/%20/g, '+');
-      const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&tags=${encodedTags}&limit=10&pid=0&json=1&user_id=5349501&api_key=33073eb799939596aa50c70390ad8c3b8290e348a4ac0c19a3f1e216d632d51c5a960bf7f2decca04d06cdf35663f4bbe02a9503e88e788e68bda6412fb28a4b`;
-      
-      const response = await fetch(apiUrl);
-      if (!response.ok) throw new Error('Network response was not OK');
-      const data = await response.json();
-
-      // Filter to videos only (.mp4 files)
-      videos = data.filter(post => post.file_url && post.file_url.endsWith('.mp4'));
-
-      if (videos.length === 0) {
-        loadingDiv.textContent = 'No videos found for these tags.';
-        videoElement.src = '';
-        return;
-      }
-
-      shuffleArray(videos);
-      loadingDiv.style.display = 'none';
-      setVideo(0);
-    } catch (error) {
-      loadingDiv.textContent = 'Error loading videos: ' + error.message;
-      console.error(error);
-      videoElement.src = '';
-    }
-  }
-
   tagApplyBtn.addEventListener('click', () => {
     const tags = tagInput.value.trim();
-    if (tags.length === 0) {
+    if (!tags) {
       alert('Please enter at least one tag.');
       return;
     }
     fetchVideos(tags);
   });
 
-  // Initial fetch
-  fetchVideos(tagInput.value);
-
-  // Optional: fullscreen on play for better experience
-  videoElement.addEventListener('play', () => {
-    if (document.fullscreenEnabled && !document.fullscreenElement) {
+  async function fetchVideos(tags = 'intense video') {
+    loadingDiv.style.display = 'block';
+    loadingDiv.textContent = 'Loading videos...';
+    try {
+      const encodedTags = encodeURIComponent(tags.trim()).replace(/%20/g, '+');
+      const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&tags=${encodedTags}&limit=10&pid=0&json=1&user_id=5349501&api_key=33073eb799939596aa50c70390ad8c3b8290e348a4ac0c19a3f1e216d632d51c5a960bf7f2decca04d06cdf35663f4bbe02a9503e88e788e68bda6412fb28a4b`;
+      const response = await fetch(apiUrl);
+      if (!response.ok) throw new Error('Network response was not OK');
+      const data = await response.json();
+      videos = data.filter(post => post.file_url && post.file_url.endsWith('.mp4'));
+      if (videos.length === 0) {
+        loadingDiv.textContent = 'No videos found for these tags.';
+        videoElement.src = '';
+        return;
+      }
+      shuffleArray(videos);
+      loadingDiv.style.display = 'none';
+      setVideo(0);
+    } catch (error) {
+      loadingDiv.textContent = 'Error loading videos: ' + error.message;
+      videoElement.src = '';
     }
-  });
+  }
+
+  let strokeBase = 15;
+  let stopBase = 10;
+  let strokeTime = strokeBase;
+  let stopTime = stopBase;
+  let isStroking = true;
+  let timerInterval = null;
+
+  // BPM list for blinking speeds, will cycle through these each stroke phase
+  const bpmList = [200, 150, 240];
+  let bpmIndex = 0;
+
+  function bpmToDuration(bpm) {
+    // Converts BPM to duration for 1 pulse cycle (full pulse: 2 beats)
+    // Pulse animation runs from opacity low to high and back (one full pulse = 2 beats)
+    // Duration (ms) = (60 / BPM) * 1000 * 2
+    return (60 / bpm) * 1000 * 2;
+  }
+
+  function startEdgeCycle(cycle = 0) {
+    // Choose BPM for this stroke cycle
+    const bpm = bpmList[bpmIndex];
+    bpmIndex = (bpmIndex + 1) % bpmList.length;
+
+    strokeTime = strokeBase;
+    stopTime = stopBase;
+
+    isStroking = true;
+    startBlinkAnimation(bpm);
+
+    let currentTime = strokeTime;
+    edgeTimerDiv.textContent = `STROKE: ${currentTime}s`;
+    edgeTimerDiv.style.color = '#61dafb';
+
+    timerInterval = setInterval(() => {
+      currentTime--;
+      if (currentTime <= 0) {
+        clearInterval(timerInterval);
+        isStroking = false;
+        stopBlinkAnimation();
+        currentTime = stopTime;
+        edgeTimerDiv.textContent = `STOP: ${currentTime}s`;
+        edgeTimerDiv.style.color = '#ff4444';
+
+        timerInterval = setInterval(() => {
+          currentTime--;
+          if (currentTime <= 0) {
+            clearInterval(timerInterval);
+            startEdgeCycle(cycle + 1);
+          } else {
+            edgeTimerDiv.textContent = `STOP: ${currentTime}s`;
+          }
+        }, 1000);
+      } else {
+        edgeTimerDiv.textContent = `STROKE: ${currentTime}s`;
+      }
+    }, 1000);
+  }
+
+  let blinkAnimFrame = null;
+
+  function startBlinkAnimation(bpm) {
+    if (blinkAnimFrame) return;
+    const duration = bpmToDuration(bpm);
+
+    strokeBlink.style.animation = `pulse ${duration}ms ease-in-out infinite`;
+    strokeBlink.style.opacity = '0.5';
+  }
+
+  function stopBlinkAnimation() {
+    strokeBlink.style.animation = '';
+    strokeBlink.style.opacity = '0.25';
+    if (blinkAnimFrame) {
+      cancelAnimationFrame(blinkAnimFrame);
+      blinkAnimFrame = null;
+    }
+  }
+
+  startEdgeCycle();
+  fetchVideos(tagInput.value);
 </script>
 
 </body>
