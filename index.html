@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rule34 Random Video Player with Tags</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: black;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-family: Arial, sans-serif;
+  }
+  video {
+    width: 100vw;
+    height: 100vh;
+    object-fit: contain;
+    background: black;
+  }
+  #controls {
+    position: fixed;
+    bottom: 20px;
+    width: 100%;
+    text-align: center;
+    background: rgba(0,0,0,0.5);
+    padding: 10px 0;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    z-index: 10;
+  }
+  button {
+    background: #222;
+    border: 1px solid #61dafb;
+    color: #61dafb;
+    padding: 10px 20px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    border-radius: 5px;
+    user-select: none;
+    transition: background-color 0.3s ease;
+  }
+  button:hover {
+    background: #61dafb;
+    color: black;
+  }
+  #loading {
+    position: fixed;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: monospace;
+    font-size: 1.1rem;
+  }
+  #tagControl {
+    position: fixed;
+    top: 30px;
+    right: 20px;
+    background: rgba(0,0,0,0.7);
+    padding: 10px 15px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 15;
+  }
+  #tagInput {
+    background: #111;
+    border: 1px solid #61dafb;
+    color: #61dafb;
+    padding: 6px 10px;
+    font-size: 1rem;
+    border-radius: 5px;
+    width: 180px;
+  }
+  #tagInput::placeholder {
+    color: #61dafb99;
+  }
+  #tagApplyBtn {
+    background: #61dafb;
+    border: none;
+    color: black;
+    padding: 7px 14px;
+    font-weight: bold;
+    font-size: 1rem;
+    border-radius: 5px;
+    cursor: pointer;
+    user-select: none;
+  }
+  #tagApplyBtn:hover {
+    background: #21a1f1;
+  }
+</style>
+</head>
+<body>
+
+<div id="loading">Loading videos...</div>
+
+<video id="videoPlayer" controls autoplay> </video>
+
+<div id="controls">
+  <button id="prevBtn">⏮ Previous</button>
+  <button id="nextBtn">Next ⏭</button>
+</div>
+
+<div id="tagControl">
+  <input id="tagInput" type="text" placeholder="Enter tags (space separated)" value="intense video" />
+  <button id="tagApplyBtn">Apply</button>
+</div>
+
+<script>
+  const videoElement = document.getElementById('videoPlayer');
+  const loadingDiv = document.getElementById('loading');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const tagInput = document.getElementById('tagInput');
+  const tagApplyBtn = document.getElementById('tagApplyBtn');
+
+  let videos = [];
+  let currentIndex = 0;
+
+  function shuffleArray(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+  }
+
+  function setVideo(index) {
+    if (videos.length === 0) return;
+    currentIndex = (index + videos.length) % videos.length; // loop around
+    const videoUrl = videos[currentIndex].file_url;
+
+    videoElement.src = videoUrl;
+    videoElement.play().catch(e => {
+      console.warn('Autoplay prevented:', e);
+    });
+    updateLoadingText();
+  }
+
+  function updateLoadingText() {
+    loadingDiv.textContent = `Playing video ${currentIndex + 1} of ${videos.length}`;
+  }
+
+  videoElement.addEventListener('ended', () => {
+    setVideo(currentIndex + 1);
+  });
+
+  prevBtn.addEventListener('click', () => {
+    setVideo(currentIndex - 1);
+  });
+
+  nextBtn.addEventListener('click', () => {
+    setVideo(currentIndex + 1);
+  });
+
+  async function fetchVideos(tags = 'intense video') {
+    loadingDiv.style.display = 'block';
+    loadingDiv.textContent = 'Loading videos...';
+    try {
+      const encodedTags = encodeURIComponent(tags.trim()).replace(/%20/g, '+');
+      const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&tags=${encodedTags}&limit=10&pid=0&json=1&user_id=5349501&api_key=33073eb799939596aa50c70390ad8c3b8290e348a4ac0c19a3f1e216d632d51c5a960bf7f2decca04d06cdf35663f4bbe02a9503e88e788e68bda6412fb28a4b`;
+      
+      const response = await fetch(apiUrl);
+      if (!response.ok) throw new Error('Network response was not OK');
+      const data = await response.json();
+
+      // Filter to videos only (.mp4 files)
+      videos = data.filter(post => post.file_url && post.file_url.endsWith('.mp4'));
+
+      if (videos.length === 0) {
+        loadingDiv.textContent = 'No videos found for these tags.';
+        videoElement.src = '';
+        return;
+      }
+
+      shuffleArray(videos);
+      loadingDiv.style.display = 'none';
+      setVideo(0);
+    } catch (error) {
+      loadingDiv.textContent = 'Error loading videos: ' + error.message;
+      console.error(error);
+      videoElement.src = '';
+    }
+  }
+
+  tagApplyBtn.addEventListener('click', () => {
+    const tags = tagInput.value.trim();
+    if (tags.length === 0) {
+      alert('Please enter at least one tag.');
+      return;
+    }
+    fetchVideos(tags);
+  });
+
+  // Initial fetch
+  fetchVideos(tagInput.value);
+
+  // Optional: fullscreen on play for better experience
+  videoElement.addEventListener('play', () => {
+    if (document.fullscreenEnabled && !document.fullscreenElement) {
+    }
+  });
+</script>
+
+</body>
+</html>
